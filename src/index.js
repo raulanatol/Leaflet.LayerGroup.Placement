@@ -15,10 +15,21 @@ function extensions(parentClass) {
       this._originalLayers = [];
       this._visibleLayers = [];
       this._staticLayers = [];
-      this._rbush = [];
       this._cachedRelativeBoxes = [];
       this._margin = options.margin || 0;
       this._rbush = null;
+    },
+
+    refresh: function () {
+      for (let i = 0; i < this._visibleLayers.length; i++) {
+        parentClass.prototype.removeLayer.call(this, this._visibleLayers[i]);
+      }
+
+      this._rbush = rbush();
+
+      for (let i = 0; i < this._originalLayers.length; i++) {
+        this._maybeAddLayerToRBush(this._originalLayers[i]);
+      }
     },
 
     addLayer: function (layer) {
@@ -82,26 +93,23 @@ function extensions(parentClass) {
 
       var z = this._map.getZoom();
       var bush = this._rbush;
-
       var boxes = this._cachedRelativeBoxes[layer._leaflet_id];
-      var visible = false;
+      let visible = false;
       if (!boxes) {
-        // Add the layer to the map so it's instantiated on the DOM,
-        //   in order to fetch its position and size.
+        // Add the layer to the map so it's instantiated on the DOM, in order to fetch its position and size.
         parentClass.prototype.addLayer.call(this, layer);
-        var visible = true;
-// 			var htmlElement = layer._icon;
-        var box = this._getIconBox(layer._icon);
+        visible = true;
+        var box = this._getIconBox(layer._icon, layer.options.uuid);
         boxes = this._getRelativeBoxes(layer._icon.children, box);
         boxes.push(box);
         this._cachedRelativeBoxes[layer._leaflet_id] = boxes;
       }
 
       boxes = this._positionBoxes(this._map.latLngToLayerPoint(layer.getLatLng()), boxes);
+      let collision = false;
 
-      var collision = false;
-      for (var i = 0; i < boxes.length && !collision; i++) {
-        collision = bush.search(boxes[i]).length > 0;
+      for (let i = 0; i < boxes.length && !collision; i++) {
+        collision = bush.collides(boxes[i]);
       }
 
       if (!collision) {
@@ -115,43 +123,35 @@ function extensions(parentClass) {
       }
     },
 
-
     // Returns a plain array with the relative dimensions of a L.Icon, based
     //   on the computed values from iconSize and iconAnchor.
-    _getIconBox: function (el) {
+    _getIconBox: function (el, uuid) {
 
       if (isMSIE8) {
         // Fallback for MSIE8, will most probably fail on edge cases
         return [0, 0, el.offsetWidth, el.offsetHeight];
       }
 
-      var styles = window.getComputedStyle(el);
-
-      // getComputedStyle() should return values already in pixels, so using parseInt()
-      //   is not as much as a hack as it seems to be.
-
-      return [
+      const styles = window.getComputedStyle(el);
+      return this._toBox(
         parseInt(styles.marginLeft),
         parseInt(styles.marginTop),
         parseInt(styles.marginLeft) + parseInt(styles.width),
-        parseInt(styles.marginTop) + parseInt(styles.height)
-      ];
+        parseInt(styles.marginTop) + parseInt(styles.height),
+        uuid
+      );
     },
-
 
     // Much like _getIconBox, but works for positioned HTML elements, based on offsetWidth/offsetHeight.
     _getRelativeBoxes: function (els, baseBox) {
-      var boxes = [];
-      for (var i = 0; i < els.length; i++) {
-        var el = els[i];
-        var box = [
-          el.offsetLeft,
-          el.offsetTop,
-          el.offsetLeft + el.offsetWidth,
-          el.offsetTop + el.offsetHeight
-        ];
-        box = this._offsetBoxes(box, baseBox);
-        boxes.push(box);
+      let boxes = [];
+      for (let i = 0; i < els.length; i++) {
+        let el = els[i];
+        if (!el.attributes['data-ignore-collision']) {
+          let box = this._toBox(el.offsetLeft, el.offsetTop, el.offsetLeft + el.offsetWidth, el.offsetTop + el.offsetHeight);
+          box = this._boxTransform(box, baseBox);
+          boxes.push(box);
+        }
 
         if (el.children.length) {
           var parentBox = baseBox;
@@ -167,15 +167,6 @@ function extensions(parentClass) {
       return boxes;
     },
 
-    _offsetBoxes: function (a, b) {
-      return [
-        a[0] + b[0],
-        a[1] + b[1],
-        a[2] + b[0],
-        a[3] + b[1]
-      ];
-    },
-
     // Adds the coordinate of the layer (in pixels / map canvas units) to each box coordinate.
     _positionBoxes: function (offset, boxes) {
       var newBoxes = [];	// Must be careful to not overwrite references to the original ones.
@@ -186,27 +177,24 @@ function extensions(parentClass) {
     },
 
     _positionBox: function (offset, box) {
-
-      return [
-        box[0] + offset.x - this._margin,
-        box[1] + offset.y - this._margin,
-        box[2] + offset.x + this._margin,
-        box[3] + offset.y + this._margin,
-      ]
+      const delta = this._toBox(offset.x - this._margin, offset.y - this._margin, offset.x + this._margin, offset.y + this._margin);
+      return this._boxTransform(box, delta);
     },
 
     _onZoomEnd: function () {
+      this.refresh();
+    },
 
-      for (let i = 0; i < this._visibleLayers.length; i++) {
-        parentClass.prototype.removeLayer.call(this, this._visibleLayers[i]);
-      }
+    _toBox: function (minX, minY, maxX, maxY, uuid) {
+      return { minX, minY, maxX, maxY, uuid };
+    },
 
-      this._rbush = rbush();
-
-      for (let i = 0; i < this._originalLayers.length; i++) {
-        this._maybeAddLayerToRBush(this._originalLayers[i]);
-      }
-
+    _boxTransform: function (sourceBox, transformBox) {
+      return this._toBox(sourceBox.minX + transformBox.minX,
+        sourceBox.minY + transformBox.minY,
+        sourceBox.maxX + transformBox.maxX,
+        sourceBox.maxY + transformBox.maxY,
+        sourceBox.uuid || transformBox.uuid)
     }
   }
 }
