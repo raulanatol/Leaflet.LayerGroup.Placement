@@ -1,6 +1,6 @@
 {
   "name": "leaflet-layergroup-placement",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "A leaflet LayerGroup plugin to automatic markers placement",
   "main": "dist/index.js",
   "scripts": {
