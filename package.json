@@ -1,0 +1,27 @@
+{
+  "name": "leaflet-layergroup-placement",
+  "version": "1.0.0",
+  "description": "A leaflet LayerGroup plugin to automatic markers placement",
+  "main": "dist/index.js",
+  "scripts": {
+    "build": "sh .scripts/build.sh"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/raulanatol/Leaflet.LayerGroup.Placement.git"
+  },
+  "keywords": [
+    "leaflet",
+    "makers"
+  ],
+  "author": "raulanatol",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/raulanatol/Leaflet.LayerGroup.Placement/issues"
+  },
+  "homepage": "https://github.com/raulanatol/Leaflet.LayerGroup.Placement#readme",
+  "dependencies": {
+    "leaflet": "^1.4.0",
+    "rbush": "^2.0.2"
+  }
+}
