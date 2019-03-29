@@ -18,9 +18,12 @@ function extensions(parentClass) {
       this._cachedRelativeBoxes = [];
       this._margin = options.margin || 0;
       this._rbush = null;
+      this._collideWithHighlightedLayers = [];
+      this._mapLayers = {};
     },
 
     refresh: function () {
+      this._collideWithHighlightedLayers = [];
       for (let i = 0; i < this._visibleLayers.length; i++) {
         parentClass.prototype.removeLayer.call(this, this._visibleLayers[i]);
       }
@@ -30,9 +33,14 @@ function extensions(parentClass) {
       for (let i = 0; i < this._originalLayers.length; i++) {
         this._maybeAddLayerToRBush(this._originalLayers[i]);
       }
+
+      for (let i = 0; i < this._collideWithHighlightedLayers.length; i++) {
+        this._maybeAddLayerToRBush(this._collideWithHighlightedLayers[i]);
+      }
     },
 
     addLayer: function (layer) {
+      this._mapLayers[layer.options.uuid] = layer;
       if (!('options' in layer) || !('icon' in layer.options)) {
         this._staticLayers.push(layer);
         parentClass.prototype.addLayer.call(this, layer);
@@ -46,6 +54,7 @@ function extensions(parentClass) {
     },
 
     removeLayer: function (layer) {
+      delete this._mapLayers[layer.options.uuid];
       this._rbush.remove(this._cachedRelativeBoxes[layer._leaflet_id]);
       delete this._cachedRelativeBoxes[layer._leaflet_id];
       parentClass.prototype.removeLayer.call(this, layer);
@@ -59,6 +68,12 @@ function extensions(parentClass) {
 
       i = this._staticLayers.indexOf(layer);
       if (i !== -1) { this._staticLayers.splice(i, 1); }
+    },
+
+    updateLayerOptions: function (layerUUID, newOptions) {
+      if (this._mapLayers[layerUUID]) {
+        this._mapLayers[layerUUID].options.poi = newOptions;
+      }
     },
 
     clearLayers: function () {
@@ -89,8 +104,14 @@ function extensions(parentClass) {
       parentClass.prototype.onRemove.call(this, map);
     },
 
-    _maybeAddLayerToRBush: function (layer) {
+    _addCollideItemsWithHighlightedLayer: function (collideItems) {
+      for (let i = 0; i < collideItems.length > 0; i++) {
+        let layer = this._mapLayers[collideItems[i].uuid];
+        this._collideWithHighlightedLayers.push(layer);
+      }
+    },
 
+    _maybeAddLayerToRBush: function (layer) {
       var z = this._map.getZoom();
       var bush = this._rbush;
       var boxes = this._cachedRelativeBoxes[layer._leaflet_id];
@@ -109,7 +130,12 @@ function extensions(parentClass) {
       let collision = false;
 
       for (let i = 0; i < boxes.length && !collision; i++) {
-        collision = bush.collides(boxes[i]);
+        let collideItems = bush.search(boxes[i]);
+        collision = collideItems.length > 0;
+        if (this._mapLayers[layer.options.uuid].options.poi.highlight) {
+          collision = false;
+          this._addCollideItemsWithHighlightedLayer(collideItems);
+        }
       }
 
       if (!collision) {
