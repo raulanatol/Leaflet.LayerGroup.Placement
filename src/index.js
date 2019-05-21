@@ -18,12 +18,10 @@ function extensions(parentClass) {
       this._cachedRelativeBoxes = [];
       this._margin = options.margin || 0;
       this._rbush = null;
-      this._collideWithHighlightedLayers = [];
       this._mapLayers = {};
     },
 
     refresh: function () {
-      this._collideWithHighlightedLayers = [];
       for (let i = 0; i < this._visibleLayers.length; i++) {
         parentClass.prototype.removeLayer.call(this, this._visibleLayers[i]);
       }
@@ -32,10 +30,6 @@ function extensions(parentClass) {
 
       for (let i = 0; i < this._originalLayers.length; i++) {
         this._maybeAddLayerToRBush(this._originalLayers[i]);
-      }
-
-      for (let i = 0; i < this._collideWithHighlightedLayers.length; i++) {
-        this._maybeAddLayerToRBush(this._collideWithHighlightedLayers[i]);
       }
     },
 
@@ -68,6 +62,15 @@ function extensions(parentClass) {
 
       i = this._staticLayers.indexOf(layer);
       if (i !== -1) { this._staticLayers.splice(i, 1); }
+    },
+
+    _removeLayersByBox: function (collideItems) {
+      for (var i = 0; i < collideItems.length; i++) {
+        const layer2Remove = this._mapLayers[collideItems[i].uuid];
+        if (layer2Remove) {
+          parentClass.prototype.removeLayer.call(this, layer2Remove);
+        }
+      }
     },
 
     updateLayerOptions: function (layerUUID, newOptions) {
@@ -104,26 +107,24 @@ function extensions(parentClass) {
       parentClass.prototype.onRemove.call(this, map);
     },
 
-    _addCollideItemsWithHighlightedLayer: function (collideItems) {
-      for (let i = 0; i < collideItems.length > 0; i++) {
-        let layer = this._mapLayers[collideItems[i].uuid];
-        this._collideWithHighlightedLayers.push(layer);
-      }
+    _generateRelativeBoxes: function (layer) {
+      parentClass.prototype.addLayer.call(this, layer);
+      visible = true;
+      var box = this._getIconBox(layer._icon, layer.options.uuid);
+      var boxes = this._getRelativeBoxes(layer._icon.children, box);
+      boxes.push(box);
+      this._cachedRelativeBoxes[layer._leaflet_id] = boxes;
+      return boxes;
     },
 
     _maybeAddLayerToRBush: function (layer) {
       var z = this._map.getZoom();
       var bush = this._rbush;
-      var boxes = this._cachedRelativeBoxes[layer._leaflet_id];
+      var boxes = layer._leaflet_id ? this._cachedRelativeBoxes[layer._leaflet_id] : null;
       let visible = false;
       if (!boxes) {
         // Add the layer to the map so it's instantiated on the DOM, in order to fetch its position and size.
-        parentClass.prototype.addLayer.call(this, layer);
-        visible = true;
-        var box = this._getIconBox(layer._icon, layer.options.uuid);
-        boxes = this._getRelativeBoxes(layer._icon.children, box);
-        boxes.push(box);
-        this._cachedRelativeBoxes[layer._leaflet_id] = boxes;
+        boxes = this._generateRelativeBoxes(layer);
       }
 
       boxes = this._positionBoxes(this._map.latLngToLayerPoint(layer.getLatLng()), boxes);
@@ -134,7 +135,9 @@ function extensions(parentClass) {
         collision = collideItems.length > 0;
         if (this._mapLayers[layer.options.uuid].options.poi.highlight) {
           collision = false;
-          this._addCollideItemsWithHighlightedLayer(collideItems);
+          if (collideItems.length > 0) {
+            this._removeLayersByBox(collideItems);
+          }
         }
       }
 
@@ -221,7 +224,7 @@ function extensions(parentClass) {
         sourceBox.maxX + transformBox.maxX,
         sourceBox.maxY + transformBox.maxY,
         sourceBox.uuid || transformBox.uuid)
-    }
+    },
   }
 }
 
