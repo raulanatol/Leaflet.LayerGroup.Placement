@@ -26,7 +26,7 @@ function extensions(parentClass) {
         parentClass.prototype.removeLayer.call(this, this._visibleLayers[i]);
       }
 
-      this._rbush = rbush();
+      this._rbush = new rbush();
 
       for (let i = 0; i < this._originalLayers.length; i++) {
         this._maybeAddLayerToRBush(this._originalLayers[i]);
