@@ -80,7 +80,7 @@ function extensions(parentClass) {
     },
 
     clearLayers: function () {
-      this._rbush = rbush();
+      this._rbush = new rbush();
       this._originalLayers = [];
       this._visibleLayers = [];
       this._staticLayers = [];

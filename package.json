@@ -21,7 +21,7 @@
   },
   "homepage": "https://github.com/raulanatol/Leaflet.LayerGroup.Placement#readme",
   "dependencies": {
-    "leaflet": "^1.4.0",
-    "rbush": "^2.0.2"
+    "leaflet": "^1.5.1",
+    "rbush": "^3.0.0"
   }
 }
